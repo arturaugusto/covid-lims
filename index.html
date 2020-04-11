@@ -129,11 +129,6 @@
           
           <span v-for="paciente in pacientesFiltro" v-bind:key="paciente.id" class="">
             <article class="media">
-              <figure class="media-left">
-                <p class="image is-64x64">
-                  <span class="tag" v-bind:class="corParaSituacao(paciente.doc.ocorrencias[0])">{{paciente.doc.ocorrencias[0].tipoOcorrencia}}</span>
-                </p>
-              </figure>
               <div class="media-content">
                 <div class="content">
                   <strong type="paciente">{{paciente.doc.nome}}</strong>
@@ -141,14 +136,14 @@
                       <span v-if="paciente.doc.RG" class="is-size-7">RG: {{paciente.doc.RG}}</span>
                       <span v-if="paciente.doc.CPF" class="is-size-7">CPF: {{paciente.doc.CPF}}</span>
                     <br>
-                    
+                    <span class="tag" v-bind:class="corParaSituacao(paciente.doc.ocorrencias[0])">{{paciente.doc.ocorrencias[0].tipoOcorrencia}}</span>
                     <small><a @click="mostraPacienteId(paciente.id)" class="open-modal">Alterar</a><!-- · 3 hrs--></small>
                   </p>
                 </div>
 
               </div>
             </article>
-            <br>
+            <hr>
           </span>
         </div>
 
