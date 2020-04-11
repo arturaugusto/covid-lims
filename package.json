@@ -1,0 +1,11 @@
+{
+  "name": "covid-lims",
+  "version": "1.0.0",
+  "description": "Sistema para gestão de pacientes com suspeita de COVID-19",
+  "main": "index.js",
+  "repository": "https://github.com/arturaugusto/covid-lims.git",
+  "author": "Artur Augusto Martins <arturaugusto@gmail.com>",
+  "license": "GPLv3",
+  "dependencies": {
+  }
+}

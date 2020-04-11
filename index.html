@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>COVID-LIMS</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.8.0/css/bulma.min.css">
+    <link href="./vendor/bulma-steps.min.css" rel="stylesheet" type="text/css"/>
+    <script defer src="https://use.fontawesome.com/releases/v5.3.1/js/all.js"></script>
+    <script src="//cdn.jsdelivr.net/npm/pouchdb@7.1.1/dist/pouchdb.min.js"></script>
+    <script src="./vendor/pouchdb.authentication.min.js"></script>
+    <script src="https://unpkg.com/imask"></script>
+    
+    <script src="https://cdn.jsdelivr.net/npm/vue@2.6.11"></script>
+    <link href="./vendor/flatpickr.min.css" rel="stylesheet">
+    <script src="./vendor/flatpickr.min.js"></script>
+    <script src="./vendor/flat-pickr-pt.js"></script>
+    <script src="./vendor/vue-flatpickr-component@8"></script>
+    <script>
+    // Initialize as global component
+    </script>
+
+  </head>
+  <body>
+    <div id="app">
+
+      <div v-if="!remoteCouch">
+        erro: Base não informada!
+      </div>
+
+      <div v-if="!usuario && remoteCouch">
+
+        <section class="section">      
+          <div class="columns">
+            <div class="column is-4 is-offset-4">
+              <div class="field">
+              <p class="control has-icons-left">
+                <input class="input" type="text" placeholder="usuário" v-model="loginForm.usuario">
+                <span class="icon is-small is-left">
+                  <i class="fa fa-user"></i>
+                </span>
+              </p>
+              </div>
+              <div class="field">
+                <p class="control has-icons-left">
+                  <input class="input" type="password" placeholder="senha" v-model="loginForm.senha">
+                  <span class="icon is-small is-left">
+                    <i class="fa fa-lock"></i>
+                  </span>
+                </p>
+              </div>
+              <p class="help is-danger" v-if="loginForm.erro">{{loginForm.erro}}</p>
+
+              <div class="field">
+                <p class="control">
+                  <button class="button is-success" @click="autenticar">
+                    Entrar
+                  </button>
+                </p>
+              </div>
+            </div>
+          </div>
+        </section>
+        
+      </div>
+      <div v-if="usuario">
+        <p class="is-size-7">logado como <strong>{{usuario.name}}</strong> · <a @click="logOut">sair</a></p>
+        <section class="section">
+          <div class="container">
+            <h1 class="title">
+              Base COVID-19
+            </h1>
+            <p class="subtitle is-size-7">
+              Base de dados para gestão de pacientes <strong>COVID-19</strong>
+            </p>
+          </div>
+        </section>
+        
+
+
+        <div class="container" id="paciente-container">
+          <!-- Main container -->
+          <nav class="level">
+            <!-- Left side -->
+            <div class="level-left">
+              <div class="level-item">
+                <p class="subtitle is-5">
+                  <strong>{{quantidadeFiltro}}</strong> pacientes
+                </p>
+              </div>
+              <div class="level-item">
+                <div class="field has-addons">
+                  <p class="control">
+                    <input class="input" type="text" placeholder="Buscar paciente" v-model="busca">
+                  </p>
+                </div>
+              </div>
+              <p class="level-item"><a class="button is-success is-small" @click="novoPaciente">Novo Paciente</a></p>
+            </div>
+
+            <!-- Right side -->
+            <div class="level-right">
+
+              <div class="container is-fluid">
+                <div class="field is-horizontal">
+                  <div class="field-label is-normal">
+                    <label class="label is-small">Situação: </label>
+                  </div>
+                  <div class="field-body">
+                    <div class="field is-narrow">
+                      <div class="control">
+                        <div class="select is-fullwidth is-small">
+                          <select v-model="filtroSituacao">
+                            <option>Todos</option>
+                            <option v-for="situacao in situacoes">{{situacao}}</option>
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+
+            </div>
+          </nav>
+          <!-- Pacientes -->
+          <span v-if="carregandoPacientes">Carregando lista de pacientes...</span>
+          <span v-if="!carregandoPacientes && quantidadeFiltro === 0">Nenhum paciente encontrado</span>
+          
+          <span v-for="paciente in pacientesFiltro" v-bind:key="paciente.id" class="">
+            <article class="media">
+              <figure class="media-left">
+                <p class="image is-64x64">
+                  <span class="tag" v-bind:class="corParaSituacao(paciente.doc.ocorrencias[0])">{{paciente.doc.ocorrencias[0].tipoOcorrencia}}</span>
+                </p>
+              </figure>
+              <div class="media-content">
+                <div class="content">
+                  <strong type="paciente">{{paciente.doc.nome}}</strong>
+                    <p>
+                      <span v-if="paciente.doc.RG" class="is-size-7">RG: {{paciente.doc.RG}}</span>
+                      <span v-if="paciente.doc.CPF" class="is-size-7">CPF: {{paciente.doc.CPF}}</span>
+                    <br>
+                    
+                    <small><a @click="mostraPacienteId(paciente.id)" class="open-modal">Alterar</a><!-- · 3 hrs--></small>
+                  </p>
+                </div>
+
+              </div>
+            </article>
+            <br>
+          </span>
+        </div>
+
+
+
+        <div class="modal is-large" v-bind:class="mostraPaciente ? 'is-active' : ''">
+          <div class="modal-background"></div>
+          <div class="modal-card">
+            
+            <header class="modal-card-head">
+              <p class="modal-card-title is-size-6">Paciente: {{paciente.nome}}</p>
+              <button class="delete close-modal" aria-label="close" @click="mostraPaciente = false"></button>
+            </header>
+            <section class="modal-card-body">
+              <!-- Content ... -->
+
+
+              <div class="field is-horizontal">
+                <div class="field-label is-normal">
+                  <label class="label">Nome</label>
+                </div>
+                <div class="field-body">
+                  <div class="field">
+                    <p class="control is-expanded has-icons-left">
+                      <input class="input" type="text" autocomplete="off" placeholder="Nome" v-model="paciente.nome">
+                      <span class="icon is-small is-left">
+                        <i class="fas fa-user"></i>
+                      </span>
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div class="field is-horizontal">
+                <div class="field-label is-normal">
+                  <label class="label">Sexo</label>
+                </div>
+                <div class="field-body">
+                  <div class="field is-narrow">
+                    <div class="control">
+                      <div class="select is-fullwidth">
+                        <select path="sexo" v-model="paciente.sexo">
+                          <option>Masculino</option>
+                          <option>Feminino</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+
+              <div class="field is-horizontal">
+                <div class="field-label is-normal">
+                  <label class="label">Telefone</label>
+                </div>
+                <div class="field-body">
+                  <div class="field is-expanded">
+                    <p class="control is-expanded">
+                      <input class="input" type="tel" placeholder="Telefone" v-model="paciente.telefone">
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div class="field is-horizontal">
+                <div class="field-label is-normal">
+                  <label class="label">E-mail</label>
+                </div>
+                <div class="field-body">
+                  <div class="field is-expanded">
+                    <p class="control is-expanded has-icons-left">
+                      <input class="input" type="email" placeholder="Email" autocomplete="off" value="" v-model="paciente.email">
+                      <span class="icon is-small is-left">
+                        <i class="fas fa-envelope"></i>
+                      </span>
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+
+              <div class="field is-horizontal">
+                <div class="field-label is-normal">
+                  <label class="label">Nascimento</label>
+                </div>
+                
+                <div class="field-body">
+                  <div class="field is-expanded">                  
+                    <p class="control is-expanded">
+                      <flat-pickr :config="fpconfig" class="input" v-model="paciente.dataNascimento"></flat-pickr>
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+
+              <div class="field is-horizontal">
+                <div class="field-label is-normal">
+                  <label class="label">RG</label>
+                </div>
+                <div class="field-body">
+                  <div class="field is-expanded">                  
+                    <p class="control is-expanded">
+                      <input class="input" type="text" placeholder="RG" v-model="paciente.RG">
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+
+              <div class="field is-horizontal">
+                <div class="field-label is-normal">
+                  <label class="label">CPF</label>
+                </div>
+                
+                <div class="field-body">
+                  <div class="field is-expanded">                  
+                    <p class="control is-expanded">
+                      <input class="input" type="text" placeholder="CPF" v-model="paciente.CPF">
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+
+              <div class="field is-horizontal">
+                <div class="field-label is-normal">
+                  <label class="label">Endereço</label>
+                </div>
+                
+                <div class="field-body">
+                  <div class="field is-expanded">                  
+                    <p class="control is-expanded">
+                      <input class="input" type="textarea" placeholder="Endereço" v-model="paciente.endereco">
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+
+              <div class="field is-horizontal">
+                <div class="field-label is-normal">
+                  <label class="label">Contato</label>
+                </div>
+                
+                <div class="field-body">
+                  <div class="field is-expanded">                  
+                    <p class="control is-expanded">
+                      <input class="input" type="tel" placeholder="Contato" v-model="paciente.contato">
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+
+
+              <div class="field is-horizontal">
+                <div class="field-label is-normal">
+                  <label class="label">Observação</label>
+                </div>
+                <div class="field-body">
+                  <div class="field">
+                    <div class="control">
+                      <textarea class="textarea" placeholder=""></textarea>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+
+              <p class="has-text-weight-bold">Ocorrências</p>
+
+              <div class="container is-fluid">
+                <div class="field is-horizontal">
+                  <div class="field-label is-normal">
+                    <label class="label is-small">Tipo</label>
+                  </div>
+                  <div class="field-body">
+                    <div class="field is-narrow">
+                      <div class="control">
+                        <div class="select is-fullwidth is-small">
+                          <select v-model="formOcorrencia.tipoOcorrencia">
+                            <option v-for="situacao in situacoes">{{situacao}}</option>
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="field is-horizontal">
+                  <div class="field-label is-normal">
+                    <label class="label is-small">Data</label>
+                  </div>
+                  
+                  <div class="field-body">
+                    <div class="field is-expanded">                  
+                      <p class="control is-expanded">
+                        <flat-pickr :config="fpconfig" class="input is-small" v-model="formOcorrencia.dataOcorrencia"></flat-pickr>
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                
+                <button class="button is-info is-small" @click="novaOcorrencia">Incluir</button>
+
+                <br><br>
+                <ul class="steps is-vertical is-small">
+                  <li class="steps-segment is-active" v-for="ocorrencia in paciente.ocorrencias">
+                    <span href="#" class="steps-marker" v-bind:class="corParaSituacao(ocorrencia)"></span>
+                      <div class="steps-content">
+                        <p class="is-size-6">{{ocorrencia.tipoOcorrencia}}
+                          <a class="is-button" @click="removerOcorrencia(ocorrencia)">
+                            <span class="is-size-7"> remover</span>
+                          </a>
+                        </p>
+                        <p>{{ocorrencia.dataOcorrencia}}</p>
+                      </div>
+                      <br>
+                  </li>
+                </ul>
+
+              </div>
+
+
+            </section>
+            <footer class="modal-card-foot">
+              <button class="button is-success" @click="criaOuAtualizaPaciente">Gravar</button>
+              <button class="button close-modal" @click="mostraPaciente = false">Cancelar</button>
+            </footer>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </body>
+  <script type="text/javascript" src="app.js"></script>
+</html>
